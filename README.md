@@ -9,7 +9,7 @@ The script will alert you with a messagebox. This is the legend of the symbols:
 * - deleted file
 * x edited file
 
-[!alt screenshot](https://github.com/echo-devim/secfiles/raw/master/example_msg.png)
+![alt screenshot](https://github.com/echo-devim/secfiles/raw/master/example_msg.png)
 
 # License
 
