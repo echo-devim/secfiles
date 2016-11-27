@@ -1,0 +1,59 @@
+#! /bin/sh
+
+# Make sure only root can run this script
+if [ "$(id -u)" != "0" ]; then
+    echo "This script must be run as root" 1>&2
+    exit 1
+fi
+
+# Global variables
+myscript=$(readlink -f $0)
+mypath=$(dirname "$myscript" )
+
+# Array of paths that the script will monitor
+declare -a secpaths=("/usr/bin/" "/usr/sbin")
+
+# Calculate the MD5 hash for every executable file in the secpaths
+echo -e "Calculating the MD5 hash for every executable in the following secpaths (this may take some minutes):\n"
+files=""
+for p in "${secpaths[@]}";
+do
+    echo "$p"
+    for f in $(find "$p" -executable -type f);
+    do files="$files$(md5sum $f)\n";
+    done
+    echo -e "..complete!\n"
+done
+echo -e "$files" | sort > "$mypath/md5list"
+
+# Check if a previous dump of MD5 hashes exists or not
+if [ ! -f "$mypath/old_md5list" ]; then
+    mv "$mypath/md5list" "$mypath/old_md5list"
+    echo -e "This is the first time you're running the script.. setup finished!\n"
+    exit 0
+fi
+
+# Show the changes
+report=$(diff "$mypath/old_md5list" "$mypath/md5list")
+
+if [ -z "$report" ]; then # Checks if $report is empty
+    echo -e "No changes\n"
+    exit 0
+fi
+
+# Filter the report to display it in the better way
+report=`echo "$report" | 
+        egrep "(<|>)" | # Select only the lines that starts with > or <
+        sort --field-separator=" " -k2,3 | # Sort the lines by second column (i.e. the MD5 hash)
+        uniq -c -f2 | # Join the lines with the same MD5
+        sed "s/^ *1 >/<span color='#FF0000'>-<\/span>/g" | # Replace 1 > with a red -
+        sed "s/^ *1 </<span color='#00FF00'>+<\/span>/g" | # Replace 1 < with a green +
+        sed "s/^ *2../<span color='#4169E1'>x<\/span>/g" | # Replace 2 and the following space and < or > with a blue x
+        sed "s/[a-f0-9]{32} //g"` # Remove the MD5s
+
+# If there are changes, we'll notify the user
+if zenity --question --title "secfiles: Files changed" --text="$report" --ok-label "Ignore" --cancel-label "Close"; then
+    # Ignore
+    rm "$mypath/old_md5list"
+    mv "$mypath/md5list" "$mypath/old_md5list"
+fi
